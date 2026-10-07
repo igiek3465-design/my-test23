@@ -1,0 +1,327 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>ROBLOX</title>
+<link rel="icon" href="/favicon.ico">
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:Arial,sans-serif;user-select:none}
+canvas{position:absolute;left:0;top:0;width:100%;height:100%}*{cursor:url(/cursor.png) 0 0,auto!important}
+#load{position:fixed;inset:0;background:#fff;z-index:9;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#load .box{width:300px;text-align:center}#load img{width:90px}
+#load p{font-size:15px;color:#222;margin:10px 0}
+#bar{height:14px;background:#d8d8d8;border:1px solid #aaa;position:relative;overflow:hidden}
+#bar i{position:absolute;top:0;left:-70px;width:70px;height:14px;background:#4fd45a;animation:mv 1s linear infinite}
+@keyframes mv{to{left:300px}}
+#chat{position:fixed;left:8px;top:8px;width:340px;max-height:170px;overflow:hidden;color:#fff;font-size:13px;text-shadow:1px 1px 2px #000;background:rgba(0,0,0,.25);padding:4px}
+#chat b{color:#9cf}
+#say{position:fixed;left:8px;bottom:8px;width:340px;padding:5px;border:1px solid #666;background:rgba(255,255,255,.85);font-size:13px}
+#hud{position:fixed;right:10px;top:8px;color:#fff;font-size:12px;text-shadow:1px 1px 2px #000;text-align:right}
+#hp{position:fixed;right:12px;bottom:12px;width:170px;height:18px;background:#222;border:2px solid #000;border-radius:3px}
+#hp i{display:block;height:100%;width:100%;background:#3c3}#hp span{position:absolute;left:0;right:0;top:0;text-align:center;font-size:11px;color:#fff;line-height:18px;text-shadow:1px 1px 1px #000}
+#hot{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);display:flex;gap:4px}
+#hot div{min-width:64px;padding:6px;background:rgba(0,0,0,.55);border:2px solid #666;color:#fff;font-size:11px;text-align:center;cursor:pointer}#hot div.on{border-color:#4f4}
+#menu{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:8;align-items:center;justify-content:center}
+#menu .mp{background:#f4f4f4;width:560px;padding:14px;border:2px solid #333;display:grid;grid-template-columns:1fr 170px;gap:8px 14px;font-size:13px;color:#111}
+#menu h3{margin:0;grid-column:1/3}#menu .l{display:flex;flex-direction:column;gap:7px}#menu button{padding:7px;font-size:13px;cursor:pointer}
+#menu iframe{width:170px;height:240px;border:1px solid #333;background:#17171a}#m_pl{font-size:12px;max-height:70px;overflow:auto}
+.prev #chat,.prev #say,.prev #hud,.prev #hp,.prev #hot{display:none!important}
+</style></head><body>
+<div id="load"><div class="box"><img src="/logo-r.png"><p id="lp">Starting ROBLOX...</p><div id="bar"><i></i></div></div></div>
+<script src="/lua.js"></script><script src="/fight.js"></script>
+<canvas id="gl"></canvas><canvas id="ov"></canvas>
+<div id="hp"><i></i><span>Health</span></div><div id="hot"></div>
+<div id="menu"><div class="mp"><h3>ROBLOX &mdash; Menu</h3><div class="l"><button id="m_res">Resume</button><button id="m_reset">Reset Character</button><label><input type="checkbox" id="m_lock"> Shift Lock (Shift key)</label><label><input type="checkbox" id="m_fp"> First Person (scroll in)</label><label>Skin <select id="m_skin"><option value="0">Classic (black / white)</option><option value="1">character.rbxm</option></select></label><label>Camera sensitivity <input type="range" id="m_sens" min=".3" max="3" step=".1" value="1"></label><div id="m_pl"></div><button id="m_leave">Leave Game</button></div><iframe id="m_av"></iframe></div></div>
+<div id="chat"></div><input id="say" placeholder="To chat click here or press / key" maxlength="200" autocomplete="off">
+<div id="hud">WASD move &middot; Space jump &middot; Right-drag camera &middot; Wheel zoom</div>
+<script>
+const Q=new URLSearchParams(location.search),S=Q.get('s')||'main',PREV=Q.get('preview')==='1',G=Q.get('g')||'',U=(Q.get('u')||'Player').replace(/[^A-Za-z0-9_]/g,'')||'Player';
+const M={id:()=>[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],
+mul(a,b){const o=Array(16);for(let c=0;c<4;c++)for(let r=0;r<4;r++){let s=0;for(let k=0;k<4;k++)s+=a[k*4+r]*b[c*4+k];o[c*4+r]=s}return o},
+T(x,y,z){const m=M.id();m[12]=x;m[13]=y;m[14]=z;return m},S(x,y,z){const m=M.id();m[0]=x;m[5]=y;m[10]=z;return m},
+RY(a){const c=Math.cos(a),s=Math.sin(a),m=M.id();m[0]=c;m[2]=-s;m[8]=s;m[10]=c;return m},
+RX(a){const c=Math.cos(a),s=Math.sin(a),m=M.id();m[5]=c;m[6]=s;m[9]=-s;m[10]=c;return m},
+P(f,a,n,fa){const t=1/Math.tan(f/2),m=Array(16).fill(0);m[0]=t/a;m[5]=t;m[10]=(fa+n)/(n-fa);m[11]=-1;m[14]=2*fa*n/(n-fa);return m},
+L(e,t){let z=[e[0]-t[0],e[1]-t[1],e[2]-t[2]],l=Math.hypot(...z);z=z.map(v=>v/l);let x=[z[2],0,-z[0]];l=Math.hypot(...x);x=x.map(v=>v/l);
+const y=[z[1]*x[2]-z[2]*x[1],z[2]*x[0]-z[0]*x[2],z[0]*x[1]-z[1]*x[0]];
+return [x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-(x[0]*e[0]+x[1]*e[1]+x[2]*e[2]),-(y[0]*e[0]+y[1]*e[1]+y[2]*e[2]),-(z[0]*e[0]+z[1]*e[1]+z[2]*e[2]),1]}};
+// ---------- .rbxl (binary) reader: Parts, MeshParts, Unions, Wedges, etc. ----------
+function lz4(s,n){const o=new Uint8Array(n);let i=0,j=0;while(i<s.length){const t=s[i++];let l=t>>4;if(l===15){let b;do{b=s[i++];l+=b}while(b===255)}for(let k=0;k<l;k++)o[j++]=s[i++];if(i>=s.length)break;const off=s[i++]|(s[i++]<<8);let m=t&15;if(m===15){let b;do{b=s[i++];m+=b}while(b===255)}m+=4;for(let k=0;k<m;k++){o[j]=o[j-off];j++}}return o}
+function ints(d,o,n){const r=[];let acc=0;for(let k=0;k<n;k++){const v=(d[o+k]<<24|d[o+n+k]<<16|d[o+2*n+k]<<8|d[o+3*n+k])>>>0;acc+=(v>>>1)^-(v&1);r.push(acc)}return r}
+/* Roblox binary CFrame special orientation IDs (1-based style tables used in .rbxl) */
+const CF_ROT={
+  2:[1,0,0,0,1,0,0,0,1],3:[1,0,0,0,0,-1,0,1,0],4:[1,0,0,0,-1,0,0,0,-1],5:[1,0,0,0,0,1,0,-1,0],
+  6:[0,1,0,1,0,0,0,0,-1],7:[0,0,1,1,0,0,0,1,0],8:[0,-1,0,1,0,0,0,0,1],9:[0,0,-1,1,0,0,0,-1,0],
+  10:[0,1,0,0,0,1,1,0,0],11:[0,0,-1,0,1,0,1,0,0],12:[0,-1,0,0,0,-1,1,0,0],13:[0,0,1,0,-1,0,1,0,0],
+  14:[-1,0,0,0,1,0,0,0,-1],15:[-1,0,0,0,0,1,0,1,0],16:[-1,0,0,0,-1,0,0,0,1],17:[-1,0,0,0,0,-1,0,-1,0],
+  18:[0,1,0,-1,0,0,0,0,1],19:[0,0,-1,-1,0,0,0,1,0],20:[0,-1,0,-1,0,0,0,0,-1],21:[0,0,1,-1,0,0,0,-1,0],
+  22:[0,1,0,0,0,-1,-1,0,0],23:[0,0,1,0,1,0,-1,0,0],24:[0,-1,0,0,0,1,-1,0,0],25:[0,0,-1,0,-1,0,-1,0,0]
+};
+const PART_CN=/^(Part|MeshPart|UnionOperation|WedgePart|CornerWedgePart|TrussPart|SpawnLocation|Seat|VehicleSeat)$/;
+const KEEP_CN=/Part|SpawnLocation|Script|Workspace|Model|Folder|Humanoid|Seat|Value|Tool|Configuration|Union|Wedge|Truss|Mesh|Players|Lighting|Sound|Decal|Texture|Attachment|Motor|Weld|Constraint|ClickDetector|Proximity|Remote|Bindable|BoolValue|IntValue|NumberValue|StringValue|ObjectValue|ModuleScript|LocalScript|Camera|Terrain|Spawn/;
+function parseRbxl(buf){
+  const u=new Uint8Array(buf),dv=new DataView(buf);
+  const magic=String.fromCharCode(...u.slice(0,8));
+  if(magic!=='<roblox!'){
+    // try XML rbxlx
+    const txt=new TextDecoder().decode(u.slice(0,Math.min(u.length,20)));
+    if(txt.indexOf('<roblox')>=0) throw 'XML .rbxlx not supported yet — save as binary .rbxl in Studio (File → Save as → Roblox Place)';
+    throw 'not a binary .rbxl (header: '+magic+')';
+  }
+  let p=32;const cls={},props={},par={};const f32=new DataView(new ArrayBuffer(4)),dec=x=>new TextDecoder().decode(x);
+  const fl=(d,o,n,k)=>{const v=(d[o+k]<<24|d[o+n+k]<<16|d[o+2*n+k]<<8|d[o+3*n+k])>>>0;f32.setUint32(0,((v>>>1)|(v<<31))>>>0);return f32.getFloat32(0)};
+  while(p<u.length-16){
+    const name=String.fromCharCode(...u.slice(p,p+4));const cl=dv.getUint32(p+4,true),ul=dv.getUint32(p+8,true);p+=16;
+    if(p+((cl||ul))>u.length)break;
+    const d=cl?lz4(u.subarray(p,p+cl),ul):u.subarray(p,p+ul);p+=cl||ul;if(name==='END\0')break;
+    const D=new DataView(d.buffer,d.byteOffset,d.byteLength);
+    if(name==='INST'){const id=D.getInt32(0,true),L=D.getUint32(4,true);const o=8+L+1,c=D.getInt32(o,true);cls[id]={n:dec(d.slice(8,8+L)),c,refs:ints(d,o+4,c)}}
+    else if(name==='PRNT'){const c=D.getUint32(1,true),ch=ints(d,5,c),pa=ints(d,5+4*c,c);ch.forEach((x,i)=>par[x]=pa[i])}
+    else if(name==='PROP'){
+      const id=D.getInt32(0,true);if(!cls[id])continue;
+      // read props for almost everything that might be geometry or hierarchy
+      if(!KEEP_CN.test(cls[id].n))continue;
+      const L=D.getUint32(4,true),pn=dec(d.slice(8,8+L)),ty=d[8+L];let o=9+L;const n=cls[id].c,pp=(props[id]=props[id]||{});
+      const pnl=pn.toLowerCase();
+      try{
+        if(ty===0x01&&(pn==='Name'||pn==='Source')){const a=[];for(let k=0;k<n;k++){const l=D.getUint32(o,true);a.push(dec(d.slice(o+4,o+4+l)));o+=4+l}pp[pn]=a}
+        else if(ty===0x0E&&(pnl==='size'||pnl==='initialsize')){pp.Size=[...Array(n)].map((_,k)=>[0,1,2].map(a=>fl(d,o+a*4*n,n,k)))}
+        else if(ty===0x10&&pn==='CFrame'){
+          const r=[];for(let k=0;k<n;k++){const rid=d[o++];if(rid===0){const m=[];for(let q=0;q<9;q++){m.push(D.getFloat32(o,true));o+=4}r.push(m)}else r.push(CF_ROT[rid]||CF_ROT[rid+1]||null)}
+          const posO=o;pp.CFrame=r.map((m,k)=>({R:m||[1,0,0,0,1,0,0,0,1],P:[0,1,2].map(a=>fl(d,posO+a*4*n,n,k))}))}
+        else if(ty===0x1A&&(pn==='Color3uint8'||pnl==='color')){pp.Color=[...Array(n)].map((_,k)=>[d[o+k],d[o+n+k],d[o+2*n+k]])}
+        else if(ty===0x0C&&pn==='BrickColor'){ /* interleave ints */ const cols=[];for(let k=0;k<n;k++){const v=(d[o+k]<<24|d[o+n+k]<<16|d[o+2*n+k]<<8|d[o+3*n+k])>>>0;const acc=(v>>>1)^-(v&1);cols.push(acc)}pp.BrickColor=cols}
+        else if(ty===0x04&&pnl==='transparency'){pp.Tr=[...Array(n)].map((_,k)=>fl(d,o,n,k))}
+        else if(ty===0x02&&pn==='CanCollide'){pp.CC=[...Array(n)].map((_,k)=>!!d[o+k])}
+        else if(ty===0x02&&pn==='Anchored'){pp.An=[...Array(n)].map((_,k)=>!!d[o+k])}
+      }catch(e){/* skip bad prop chunk */}
+    }
+  }
+  // BrickColor number → approximate RGB
+  const BC={1:[242,243,243],5:[215,197,154],11:[128,187,219],21:[196,40,28],23:[13,105,172],24:[245,205,48],26:[27,42,53],28:[40,127,71],29:[161,196,140],37:[75,151,75],38:[160,95,53],45:[180,210,228],104:[107,50,124],119:[164,189,71],194:[163,162,165],199:[99,95,98],1001:[248,248,248],1002:[205,84,57],1003:[124,92,70],1004:[199,132,67],1005:[33,84,185],1006:[0,255,0],1007:[255,0,0],1008:[255,255,0],1009:[0,0,255],1010:[255,0,255],1031:[0,0,0]};
+  const by={},all=[];
+  for(const id in cls){
+    const c=cls[id],pr=props[id]||{};
+    if(!KEEP_CN.test(c.n))continue;
+    for(let k=0;k<c.c;k++){
+      const i=new Inst(c.n,(pr.Name||[])[k]||c.n);i.ref=c.refs[k];i.src=(pr.Source||[])[k];
+      if(PART_CN.test(c.n)){
+        const cf=pr.CFrame&&pr.CFrame[k];
+        let S=pr.Size&&pr.Size[k];
+        // MeshPart / Union sometimes lack Size in older chunks — default box
+        if(!S) S=[4,1,2];
+        if(cf){
+          let col=[163,162,165];
+          if(pr.Color&&pr.Color[k]) col=pr.Color[k];
+          else if(pr.BrickColor&&pr.BrickColor[k]!=null) col=BC[pr.BrickColor[k]]||col;
+          i.q={S:S,R:cf.R||[1,0,0,0,1,0,0,0,1],P:cf.P,C:col.map(v=>v/255),Tr:pr.Tr?pr.Tr[k]:0,cc:pr.CC?!!pr.CC[k]:true,an:pr.An?!!pr.An[k]:true,inst:i};
+          i.spawn=c.n==='SpawnLocation';
+        }
+      }
+      by[i.ref]=i;all.push(i);
+    }
+  }
+  all.forEach(i=>{const pa=by[par[i.ref]];if(pa){i.par=pa;pa.kids.push(i)}});
+  // also parent any root-looking instances under Workspace if missing parent link
+  const ws=all.find(i=>i.cn==='Workspace')||null;
+  return {by,all,ws}}
+// ---------- GL ----------
+const cv=document.getElementById('gl'),gl=cv.getContext('webgl'),ov=document.getElementById('ov'),cx=ov.getContext('2d');
+const pr=gl.createProgram(),sh=(t,s)=>{const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);return o};
+gl.attachShader(pr,sh(gl.VERTEX_SHADER,`attribute vec3 aP,aN;uniform mat4 uM,uV;varying vec3 vN,vW;void main(){vec4 w=uM*vec4(aP,1.);vW=w.xyz;vN=normalize(mat3(uM)*aN);gl_Position=uV*w;}`));
+gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,`#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+varying vec3 vN,vW;uniform vec3 uC;uniform sampler2D uT;uniform float uUT;void main(){vec3 c=uC;float l=.5+.5*max(dot(vN,normalize(vec3(.4,.8,.5))),0.)+.12*abs(vN.x);
+if(uUT>.5){vec3 n=abs(vN);vec2 uv=n.y>.5?vW.xz:(n.x>.5?vW.zy:vW.xy);c*=texture2D(uT,uv/8.).rgb*1.4;}else if(vN.y>.9)c*=.88+.12*smoothstep(.28,.36,length(fract(vW.xz)-.5));gl_FragColor=vec4(c*l,1.);}`));
+gl.linkProgram(pr);gl.useProgram(pr);
+const V=[],Nn=[];[[0,0,1],[0,0,-1],[1,0,0],[-1,0,0],[0,1,0],[0,-1,0]].forEach(n=>{const a=n[0]?[0,1,0]:[1,0,0],b=[n[1]*a[2]-n[2]*a[1],n[2]*a[0]-n[0]*a[2],n[0]*a[1]-n[1]*a[0]];
+ [[-1,-1],[1,-1],[1,1],[-1,-1],[1,1],[-1,1]].forEach(([s,t])=>{for(let i=0;i<3;i++){V.push(n[i]*.5+a[i]*s*.5+b[i]*t*.5);Nn.push(n[i])}})});
+let bufP,bufN;[['aP',V],['aN',Nn]].forEach(([nm,a])=>{const b=gl.createBuffer();if(nm==='aP')bufP=b;else bufN=b;gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(a),gl.STATIC_DRAW);const l=gl.getAttribLocation(pr,nm);gl.enableVertexAttribArray(l);gl.vertexAttribPointer(l,3,gl.FLOAT,false,0,0)});
+const uM=gl.getUniformLocation(pr,'uM'),uV=gl.getUniformLocation(pr,'uV'),uC=gl.getUniformLocation(pr,'uC');
+gl.enable(gl.DEPTH_TEST);gl.clearColor(.52,.7,.9,1);if(PREV){gl.clearColor(.09,.09,.1,1);document.body.classList.add('prev')}
+const box=(m,c)=>{gl.uniformMatrix4fv(uM,false,m);gl.uniform3fv(uC,c);gl.drawArrays(gl.TRIANGLES,0,36)};
+// ---------- avatar (2013 R6, black body, white smiley head) ----------
+function avatar(base,t,walk,air,name,ra,sk){if(sk&&FIGHT.skinDraw(base,t,walk,air,ra,sk))return;
+  const arm=air?3.0:Math.sin(t*10)*0.9*walk,leg=Math.sin(t*10)*0.9*walk,K=[.1,.1,.11];
+  box(M.mul(base,M.mul(M.T(0,3,0),M.S(2,2,1))),K);
+  box(M.mul(base,M.mul(M.T(0,4.5,0),M.S(1.25,1,1.25))),[.95,.95,.95]);
+  [[-.25],[.25]].forEach(([x])=>box(M.mul(base,M.mul(M.T(x,4.6,.64),M.S(.14,.22,.04))),[0,0,0]));
+  box(M.mul(base,M.mul(M.T(0,4.25,.64),M.S(.5,.08,.04))),[0,0,0]);
+  [[-1.5,4,1],[1.5,4,-1]].forEach(([x,y,s])=>box(M.mul(base,M.mul(M.T(x,y,0),M.mul(M.RX(ra!=null&&s===1?ra:arm*s),M.mul(M.T(0,-1,0),M.S(1,2,1))))),K));
+  [[-.5,2,1],[.5,2,-1]].forEach(([x,y,s])=>box(M.mul(base,M.mul(M.T(x,y,0),M.mul(M.RX(leg*s),M.mul(M.T(0,-1,0),M.S(1,2,1))))),K))}
+// ---------- world ----------
+let parts=[{S:[2048,1,2048],R:[1,0,0,0,1,0,0,0,1],P:[0,-.5,0],C:[.39,.37,.38],Tr:0}],spawn=[0,6,0];
+const P={x:0,y:6,z:0,vy:0,h:0,sp:0},keys={},others={};let yaw=0,pit=.35,dist=14,t=0,last=performance.now();
+const mm=(r,p)=>{const m=M.id();m[0]=r[0];m[1]=r[3];m[2]=r[6];m[4]=r[1];m[5]=r[4];m[6]=r[7];m[8]=r[2];m[9]=r[5];m[10]=r[8];m[12]=p[0];m[13]=p[1];m[14]=p[2];return m};
+const grid=new Map(),big=[],touchQ=[];let dyn=[],stamp=0;
+const gk=(a,b)=>(a+32768)*65536+(b+32768);
+function gridAdd(q){const[hx,,hz]=ext(q),x0=Math.floor((q.P[0]-hx)/32),x1=Math.floor((q.P[0]+hx)/32),z0=Math.floor((q.P[2]-hz)/32),z1=Math.floor((q.P[2]+hz)/32);
+ if((x1-x0+1)*(z1-z0+1)>64){big.push(q);return}for(let a=x0;a<=x1;a++)for(let b=z0;b<=z1;b++){const k=gk(a,b);let l=grid.get(k);if(!l)grid.set(k,l=[]);l.push(q)}}
+function mkDyn(q){if(q.in&&!q.dyn){q.dyn=true;dyn.push(q)}}
+function addPart(q,d){q.in=true;q.gone=false;if(d||q.an===false){if(!q.dyn){q.dyn=true;dyn.push(q)}}else gridAdd(q)}
+function near(x,z,r){stamp++;const out=[],add=q=>{if(q.st!==stamp&&!q.gone){q.st=stamp;out.push(q)}};
+ const x0=Math.floor((x-r)/32),x1=Math.floor((x+r)/32),z0=Math.floor((z-r)/32),z1=Math.floor((z+r)/32);
+ for(let a=x0;a<=x1;a++)for(let b=z0;b<=z1;b++){const l=grid.get(gk(a,b));if(l)l.forEach(add)}big.forEach(add);dyn.forEach(add);return out}
+const ext=q=>{const R=q.R,S=q.S;return[(Math.abs(R[0])*S[0]+Math.abs(R[1])*S[1]+Math.abs(R[2])*S[2])/2,(Math.abs(R[3])*S[0]+Math.abs(R[4])*S[1]+Math.abs(R[5])*S[2])/2,(Math.abs(R[6])*S[0]+Math.abs(R[7])*S[1]+Math.abs(R[8])*S[2])/2]};
+function ground(x,z,fy,skip,st){let g=-1e9;for(const q of near(x,z,6)){if(q.cc===false||q===skip)continue;const[hx,hy,hz]=ext(q),top=q.P[1]+hy;if(Math.abs(x-q.P[0])<=hx&&Math.abs(z-q.P[2])<=hz&&top<=fy+(st||2.6)&&top>g)g=top}return g}
+function blocked(x,z,y){for(const q of near(x,z,6)){if(q.cc===false)continue;const[hx,hy,hz]=ext(q);if(Math.abs(x-q.P[0])<hx+.9&&Math.abs(z-q.P[2])<hz+.9&&q.P[1]+hy>y+2.6&&q.P[1]-hy<y+5)return true}return false}
+function touching(q){const[hx,hy,hz]=ext(q);return Math.abs(P.x-q.P[0])<hx+1&&Math.abs(P.z-q.P[2])<hz+1&&P.y<q.P[1]+hy+.5&&P.y+5>q.P[1]-hy}
+if(!PREV)addPart(parts[0]);
+let lock=false,sens=1,menuOpen=false,rel=false,eq=null,tools=[],RR=420,moved=0,drag=false,lx=0,ly=0;const bub={},clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function ptr(){const want=(lock||dist<2)&&!menuOpen&&!PREV;if(want){ov.requestPointerLock&&ov.requestPointerLock()}else if(document.pointerLockElement){rel=true;document.exitPointerLock();setTimeout(()=>rel=false,150)}}
+document.addEventListener('pointerlockchange',()=>{if(!document.pointerLockElement&&!menuOpen&&!rel&&(lock||dist<2)&&!PREV)toggleMenu()});
+addEventListener('keydown',e=>{const typing=document.activeElement.id==='say';
+ if(typing){if(e.key==='Enter'){sendSay(e.target.value);e.target.value='';e.target.blur()}if(e.key==='Escape')e.target.blur();return}
+ if(e.key==='Escape'){toggleMenu();return}
+ if(e.key==='/'){e.preventDefault();document.getElementById('say').focus();return}
+ if(e.code==='ShiftLeft'||e.code==='ShiftRight'){if(!e.repeat&&!menuOpen){lock=!lock;ptr();syncMenu()}return}
+ if(/^Digit[1-9]$/.test(e.code))equip(+e.code[5]-1);
+ if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();keys[e.code]=1});
+addEventListener('keyup',e=>keys[e.code]=0);addEventListener('blur',()=>{for(const k in keys)keys[k]=0});
+ov.oncontextmenu=e=>e.preventDefault();
+ov.onmousedown=e=>{window.focus();if(menuOpen)return;drag=true;moved=0;lx=e.clientX;ly=e.clientY};
+addEventListener('mouseup',e=>{if(drag&&moved<5&&e.button===0)activate();drag=false});
+addEventListener('mousemove',e=>{if(menuOpen)return;if(document.pointerLockElement===ov){yaw-=e.movementX*.0025*sens;pit=clamp(pit+e.movementY*.0025*sens,-1.2,1.4)}
+ else if(drag){const dx=e.clientX-lx,dy=e.clientY-ly;moved+=Math.abs(dx)+Math.abs(dy);yaw-=dx*.008*sens;pit=clamp(pit+dy*.006*sens,-1.2,1.4);lx=e.clientX;ly=e.clientY}});
+addEventListener('wheel',e=>{if(menuOpen)return;e.preventDefault();dist=clamp(dist+e.deltaY*.02,.5,60);if(dist<2)dist=e.deltaY<0?.5:2.2;ptr();syncMenu()},{passive:false});
+// ---------- chat + multiplayer (through run.py) ----------
+let pend=null,since=0;const chatEl=document.getElementById('chat');
+function sendSay(s){s=s.trim();if(s)pend=s}
+function addChat(u,s){const d=document.createElement('div');d.innerHTML='<b></b>: <span></span>';d.children[0].textContent=u;d.children[1].textContent=s;chatEl.appendChild(d);while(chatEl.children.length>8)chatEl.firstChild.remove()}
+setInterval(async()=>{if(PREV)return;try{const r=await(await fetch('/api/mp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({g:G,s:S,u:U,p:[P.x,P.y,P.z,P.h,P.sp,P.vy!==0?1:0,...FIGHT.pp()],say:pend,since,fx:FIGHT.pack()})})).json();pend=null;FIGHT.recv(r);
+ for(const k in others)if(!r.pl[k])delete others[k];for(const k in r.pl){if(k===U)continue;if(!others[k]&&!hatSeen[k]){hatSeen[k]=1;loadHats(k,k)}const o=others[k]=others[k]||{x:r.pl[k][0],y:r.pl[k][1],z:r.pl[k][2],h:0};o.t=r.pl[k]}
+ (r.chat||[]).forEach(c=>{since=Math.max(since,c[0]);addChat(c[1],c[2]);bub[c[1]]={txt:c[2],t:t}})}catch(e){}},100);
+// ---------- loop ----------
+function frame(now){const dt=Math.min(.05,(now-last)/1e3);last=now;t+=dt;
+ const W=innerWidth,H=innerHeight;if(cv.width!==W||cv.height!==H){cv.width=ov.width=W;cv.height=ov.height=H}
+ yaw+=((keys.ArrowLeft?1:0)-(keys.ArrowRight?1:0))*2*dt;let f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),s=(keys.KeyD?1:0)-(keys.KeyA?1:0);if(menuOpen||PREV){f=0;s=0}
+ if(f||s){const a=yaw,dx=-(Math.sin(a)*f)+Math.cos(a)*s,dz=-(Math.cos(a)*f)-Math.sin(a)*s,l=Math.hypot(dx,dz);{const SP=FIGHT.fly?45:16,nx=P.x+dx/l*SP*dt,nz=P.z+dz/l*SP*dt;if(!blocked(nx,P.z,P.y))P.x=nx;if(!blocked(P.x,nz,P.y))P.z=nz}if(!(lock||dist<2))P.h=Math.atan2(dx,dz);P.sp=1}else P.sp=0;if(lock||dist<2)P.h=yaw+Math.PI;
+ if(FIGHT.fly){P.vy=((keys.Space?1:0)-(keys.KeyC?1:0))*45;P.y=Math.max(3,P.y+P.vy*dt)}else{P.vy-=196.2*dt;P.y+=P.vy*dt;const g=ground(P.x,P.z,P.y);if(g>-1e8&&P.y<=g+.01&&P.vy<=0){P.y=g;P.vy=0;if(keys.Space)P.vy=50}}
+ if(Hum.v.Health<=0||P.y<-300){if(FIGHT.on){FIGHT.died();spawn=FIGHT.pick()}Hum.v.Health=100;P.x=spawn[0];P.y=spawn[1];P.z=spawn[2];P.vy=0}
+ if(PREV){yaw+=dt*.9;pit=.12;dist=12;P.x=0;P.z=0;P.y=0;P.vy=0;P.sp=0}
+ const fp=dist<2&&!PREV,off=lock&&!fp?1.7:0;let tg,ey;
+ if(fp){ey=[P.x,P.y+4.8,P.z];tg=[ey[0]-Math.sin(yaw)*Math.cos(pit),ey[1]-Math.sin(pit),ey[2]-Math.cos(yaw)*Math.cos(pit)]}
+ else{tg=[P.x+Math.cos(yaw)*off,P.y+4,P.z-Math.sin(yaw)*off];ey=[tg[0]+Math.sin(yaw)*Math.cos(pit)*dist,tg[1]+Math.sin(pit)*dist,tg[2]+Math.cos(yaw)*Math.cos(pit)*dist]}
+ const VP=M.mul(M.P(1.1,W/H,.5,3000),M.L(ey,tg));VPm=VP;gl.viewport(0,0,W,H);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.uniformMatrix4fv(uV,false,VP);
+ {FIGHT.tex(1);const nl=near(P.x,P.z,RR);let c=0;for(const q of nl)if((q.Tr||0)<.5){box(M.mul(mm(q.R,q.P),M.S(q.S[0],q.S[1],q.S[2])),q.C);c++}RR=c>5000?Math.max(100,RR*.85):c<2000?Math.min(420,RR*1.05):RR;FIGHT.tex(0)}
+ if(!fp){const B=M.mul(M.T(P.x,P.y,P.z),M.RY(P.h));avatar(B,t,P.sp,P.vy!==0,U,FIGHT.ra(),FIGHT.sk());if(eq){const hd=eq.kids.find(k=>k.name==='Handle'&&k.q);if(hd)box(M.mul(B,M.mul(M.T(1.5,2.6,1.1),M.S(...hd.q.S))),hd.q.C)}}
+ tickGame(dt);cx.clearRect(0,0,W,H);cx.font='bold 13px Arial';cx.textAlign='center';
+ const lab=(n,x,y,z)=>{const c=[0,1,2,3].map(r=>VP[r]*x+VP[4+r]*y+VP[8+r]*z+VP[12+r]);if(c[3]<=0)return;const sx=(c[0]/c[3]*.5+.5)*W,sy=(1-(c[1]/c[3]*.5+.5))*H;cx.fillStyle='#000';cx.fillText(n,sx+1,sy+1);cx.fillStyle='#fff';cx.fillText(n,sx,sy)};
+ if(!fp&&!PREV){lab(U,P.x,P.y+6,P.z);bubble(U,P.x,P.y+7,P.z)}hpUpdate();
+ for(const k in others){const o=others[k],T=o.t;o.x+=(T[0]-o.x)*.25;o.y+=(T[1]-o.y)*.25;o.z+=(T[2]-o.z)*.25;o.h=T[3];avatar(M.mul(M.T(o.x,o.y,o.z),M.RY(o.h)),t,T[4],T[5],k,FIGHT.ra(k),FIGHT.sk(k));lab(k,o.x,o.y+6,o.z);bubble(k,o.x,o.y+7,o.z)}
+ drawHats();FIGHT.draw(dt);requestAnimationFrame(frame)}
+// ---------- Roblox API for scripts ----------
+class V3{constructor(x,y,z){this.X=x;this.Y=y;this.Z=z}__get(k){return k==='Magnitude'?Math.hypot(this.X,this.Y,this.Z):k==='Unit'?(l=>new V3(this.X/l,this.Y/l,this.Z/l))(Math.hypot(this.X,this.Y,this.Z)||1):k==='Position'?this:this[k]}
+ __op(o,a,b){if(o==='neg')return new V3(-a.X,-a.Y,-a.Z);const f=(x,y)=>o==='+'?x+y:o==='-'?x-y:o==='*'?x*y:x/y,A=a instanceof V3?a:{X:a,Y:a,Z:a},B=b instanceof V3?b:{X:b,Y:b,Z:b};return new V3(f(A.X,B.X),f(A.Y,B.Y),f(A.Z,B.Z))}
+ __eq(o){return o instanceof V3&&o.X===this.X&&o.Y===this.Y&&o.Z===this.Z}__tostring(){return this.X+', '+this.Y+', '+this.Z}}
+class C3{constructor(r,g,b){this.r=r;this.g=g;this.b=b}__get(k){return{R:this.r,G:this.g,B:this.b}[k]}}
+const BC={'Bright red':[.77,.16,.11],'Really red':[1,0,0],'Bright blue':[.05,.41,.67],'Really blue':[0,0,1],'Bright green':[.3,.59,.3],'Lime green':[0,1,0],'Bright yellow':[.99,.8,.04],'Black':[.1,.1,.11],'Really black':[0,0,0],'White':[.95,.95,.95],'Medium stone grey':[.64,.64,.65],'Bright orange':[.85,.52,.26],'Hot pink':[1,0,.75]};
+class Ev{constructor(){this.f=[]}__get(k){if(k==='Connect'||k==='connect')return(s,fn)=>{this.f.push(fn);return{__get:()=>(()=>{this.f=this.f.filter(x=>x!==fn)})}};if(k==='wait'||k==='Wait')return()=>new Promise(r=>this.f.push(()=>r()))}
+ fire(...a){this.f.slice().forEach(fn=>Lua.call(fn,a).catch(logErr))}}
+const logErr=e=>addChat('Script error',String(e.message||e));
+const inWS=i=>{for(let x=i;x;x=x.par)if(x.cn==='Workspace')return true;return false};
+function sync(i){const q=i.q;if(!q)return;if(inWS(i)){if(!q.in||q.gone)addPart(q,true)}else q.gone=true}
+function syncTree(i){sync(i);i.kids.forEach(syncTree)}
+class Inst{constructor(cn,name){this.cn=cn;this.name=name||cn;this.par=null;this.kids=[];this.ev={};this.q=null;this.v={};
+ if(cn==='Humanoid')this.v={Health:100,MaxHealth:100}}
+ e(n){if(n==='Touched'&&this.q&&!touchQ.includes(this.q))touchQ.push(this.q);return this.ev[n]||(this.ev[n]=new Ev())}
+ __tostring(){return this.name}
+ __eq(o){return o===this}
+ __get(k){const q=this.q;switch(k){
+  case'Name':return this.name;case'ClassName':return this.cn;case'Parent':return this.par||undefined;
+  case'Touched':return this.e('Touched');case'Changed':return this.e('Changed');case'ChildAdded':return this.e('ChildAdded');
+  case'Position':case'CFrame':return q?new V3(...q.P):this.v[k];case'Size':return q?new V3(...q.S):undefined;
+  case'Transparency':return q?q.Tr||0:this.v.Transparency;case'CanCollide':return q?q.cc!==false:undefined;case'Anchored':return q?q.an!==false:true;
+  case'Color':return q?new C3(...q.C):undefined;
+  case'Health':case'MaxHealth':return this.v[k];
+  case'Destroy':case'destroy':case'Remove':return()=>this.__set('Parent',undefined);
+  case'FindFirstChild':case'WaitForChild':case'findFirstChild':return(s,n)=>this.kids.find(c=>c.name===n);
+  case'GetChildren':case'children':case'getChildren':return()=>{const t=new Lua.LT();this.kids.forEach((c,i)=>t.set(i+1,c));return t};
+  case'IsA':return(s,n)=>this.cn===n||(n==='BasePart'&&!!this.q)||n==='Instance';
+  case'TakeDamage':return(s,n)=>{this.v.Health-=n};
+  case'Clone':return()=>{const c=new Inst(this.cn,this.name);c.src=this.src;if(this.q)c.q=Object.assign({},this.q,{P:[...this.q.P],inst:c});this.kids.forEach(x=>{const y=x.__get('Clone')();y.par=c;c.kids.push(y)});return c};
+  case'GetService':return(s,n)=>this.__get(n);
+  case'GetPlayerFromCharacter':return(s,m)=>Me;
+  case'LocalPlayer':return Me;case'Character':return Char;case'Humanoid':return Hum;
+  case'GetPlayers':return()=>{const t=new Lua.LT();t.set(1,Me);return t};
+  case'Activated':case'Equipped':case'Unequipped':case'Deactivated':case'PlayerAdded':case'CharacterAdded':case'Heartbeat':case'RenderStepped':case'Stepped':case'PlayerRemoving':return this.e(k);
+  case'AddItem':return(s,o,t)=>setTimeout(()=>o.__set('Parent',undefined),(t||10)*1e3);
+  case'Workspace':return WS;case'Players':return PL;case'Lighting':return LI;case'Debris':return DB;case'RunService':return RS;
+  case'UserId':return 1;
+  default:return this.kids.find(c=>c.name===k)||this.v[k]}}
+ __set(k,v){const q=this.q;switch(k){
+  case'Name':this.name=v;break;
+  case'Parent':{if(this.par)this.par.kids=this.par.kids.filter(c=>c!==this);this.par=v||null;if(v){v.kids.push(this);v.e('ChildAdded').fire(this)}syncTree(this);break}
+  case'Position':case'CFrame':if(q&&v instanceof V3){q.P=[v.X,v.Y,v.Z];mkDyn(q)}break;
+  case'Anchored':if(q){q.an=!!v;if(!q.an)mkDyn(q)}break;
+  case'Size':if(q&&v instanceof V3){q.S=[v.X,v.Y,v.Z];mkDyn(q)}break;
+  case'Transparency':if(q)q.Tr=v;else this.v.Transparency=v;break;
+  case'CanCollide':if(q)q.cc=!!v;break;
+  case'Color':if(q&&v instanceof C3)q.C=[v.r,v.g,v.b];break;
+  case'BrickColor':if(q&&v&&v.c)q.C=v.c;break;
+  default:this.v[k]=v;if(this.cn==='Humanoid'&&k==='Health')break;this.e('Changed').fire(k)}}}
+const mkRoot=n=>{const i=new Inst(n);return i};
+let WS,PL,LI=mkRoot('Lighting'),DB=mkRoot('Debris'),RS=mkRoot('RunService'),Me=new Inst('Player',U),Char=new Inst('Model',U),Hum=new Inst('Humanoid','Humanoid'),charPart=new Inst('Part','Torso');
+Char.kids=[Hum,charPart];Hum.par=charPart.par=Char;charPart.q={S:[2,2,1],R:[1,0,0,0,1,0,0,0,1],P:[0,0,0],C:[0,0,0],cc:false};Me.v.Character=Char;
+function tickGame(dt){charPart.q.P=[P.x,P.y+3,P.z];RS.e('Heartbeat').fire(dt);RS.e('RenderStepped').fire(dt);RS.e('Stepped').fire(t,dt);
+ for(const q of touchQ){const i=q.inst;if(q.gone||!i.ev.Touched.f.length)continue;if(touching(q)&&(!q.td||t-q.td>.5)){q.td=t;i.ev.Touched.fire(charPart)}}
+ for(const q of dyn){if(q.gone||q.an!==false)continue;q.vy=(q.vy||0)-196.2*dt;const[,hy]=ext(q);let ny=q.P[1]+q.vy*dt;const g=ground(q.P[0],q.P[2],ny-hy,q,.6);if(g>-1e8&&ny-hy<=g){ny=g+hy;q.vy=0}q.P[1]=ny;if(ny<-500)q.gone=true}
+ if(((t*.5)|0)!==(((t-dt)*.5)|0))dyn=dyn.filter(q=>!q.gone||(q.dyn=false))}
+async function runScripts(w){
+  const sleep=s=>new Promise(r=>setTimeout(r,Math.max(0,(s||.03))*1e3));
+  const mkLib=(o)=>{const t=new Lua.LT();for(const k in o)t.set(k,o[k]);return t};
+  WS=w.ws||mkRoot('Workspace');PL=mkRoot('Players');PL.kids=[Me];
+  const game=new Inst('DataModel','Game');game.kids=[WS,PL,LI,DB,RS];
+  const glob={game,Game:game,workspace:WS,Workspace:WS,wait:async s=>{await sleep(s);return[s||.03,t]},Wait:async s=>{await sleep(s)},tick:()=>Date.now()/1e3,time:()=>t,
+   spawn:fn=>{Lua.call(fn,[]).catch(logErr)},delay:(s,fn)=>{setTimeout(()=>Lua.call(fn,[]).catch(logErr),s*1e3)},warn:(...a)=>addChat('Output',a.join(' ')),
+   Instance:mkLib({new:(c,p)=>{const i=new Inst(c);if(/Part$|^Part$/.test(c))i.q={S:[4,1,2],R:[1,0,0,0,1,0,0,0,1],P:[0,5,0],C:[.63,.64,.65],Tr:0,cc:true,an:false,inst:i};if(p)i.__set('Parent',p);return i}}),
+   Vector3:mkLib({new:(x,y,z)=>new V3(x||0,y||0,z||0)}),CFrame:mkLib({new:(x,y,z)=>x instanceof V3?x:new V3(x||0,y||0,z||0),Angles:()=>new V3(0,0,0)}),
+   Color3:mkLib({new:(r,g,b)=>new C3(r,g,b),fromRGB:(r,g,b)=>new C3(r/255,g/255,b/255)}),
+   BrickColor:mkLib({new:n=>({c:BC[n]||[.63,.64,.65]}),Random:()=>({c:[Math.random(),Math.random(),Math.random()]})}),Enum:new Lua.LT()};
+  for(const i of w.all){ if((i.cn==='Script'||i.cn==='LocalScript')&&i.src){ try{ const r=await Lua.exec(i.src,Object.assign({script:i},glob),m=>addChat(i.name,m)); r.run().catch(logErr) }catch(e){ addChat('Script error',i.name+': '+e.message) } } }
+  setTimeout(()=>{PL.e('PlayerAdded').fire(Me);Me.e('CharacterAdded').fire(Char)},50)}
+// ---------- hats / items from your profile ----------
+const hats=[];
+function objMesh(txt){const v=[],vt=[],P2=[],U2=[],N2=[];for(const l of txt.split('\n')){const a=l.trim().split(/\s+/);if(a[0]==='v')v.push(a.slice(1,4).map(Number));else if(a[0]==='vt')vt.push(a.slice(1,3).map(Number));else if(a[0]==='f'){const ix=a.slice(1).map(x=>x.split('/').map(y=>y?parseInt(y):0));for(let i=1;i<ix.length-1;i++)for(const k of[0,i,i+1]){const[p,u]=ix[k];P2.push(...v[p-1]);U2.push(...(u?[vt[u-1][0],1-vt[u-1][1]]:[0,0]))}}}return{P:P2,U:U2}}
+const pr2=gl.createProgram();gl.attachShader(pr2,sh(gl.VERTEX_SHADER,`attribute vec3 aP;attribute vec2 aU;uniform mat4 uM,uV;varying vec2 vU;void main(){vU=aU;gl_Position=uV*uM*vec4(aP,1.);}`));
+gl.attachShader(pr2,sh(gl.FRAGMENT_SHADER,`precision mediump float;varying vec2 vU;uniform sampler2D uT;uniform float uH;void main(){gl_FragColor=uH>.5?texture2D(uT,vU):vec4(.7,.7,.72,1.);}`));gl.linkProgram(pr2);
+async function loadHats(name,owner){try{const j=await(await fetch('/api/profile?u='+encodeURIComponent(name))).json();
+ for(const w of(j.wearing||[])){if(!w.assetId)continue;const d=await(await fetch('/api/hat3d?id='+w.assetId)).json();if(!d.ok)continue;if(d.shirt){const mkb=a=>{const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(a),gl.STATIC_DRAW);return b};const u0=d.tmpl?231/585:0,u1=d.tmpl?359/585:1,v0=d.tmpl?74/559:0,v1=d.tmpl?202/559:1;
+  const h={owner,kind:'shirt',n:6,bp:mkb([-.5,-.5,0,.5,-.5,0,.5,.5,0,-.5,-.5,0,.5,.5,0,-.5,.5,0]),bu:mkb([u0,v1,u1,v1,u1,v0,u0,v1,u1,v0,u0,v0]),tex:null};hats.push(h);
+  const im=new Image();im.onload=()=>{const t2=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t2);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,im);[gl.TEXTURE_WRAP_S,gl.TEXTURE_WRAP_T].forEach(x=>gl.texParameteri(gl.TEXTURE_2D,x,gl.CLAMP_TO_EDGE));gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);h.tex=t2};im.src=d.shirt;continue}
+  const m=objMesh(d.obj);if(!m.P.length)continue;
+  const mn=[1e9,1e9,1e9],mx=[-1e9,-1e9,-1e9];for(let i=0;i<m.P.length;i+=3)for(let k=0;k<3;k++){mn[k]=Math.min(mn[k],m.P[i+k]);mx[k]=Math.max(mx[k],m.P[i+k])}
+  const sc=1.7/Math.max(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]),c=mn.map((x,k)=>(x+mx[k])/2),mk=(a)=>{const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(a),gl.STATIC_DRAW);return b};
+  const h={owner,n:m.P.length/3,bp:mk(m.P),bu:mk(m.U),sc,c,tex:null};hats.push(h);
+  if(d.textures[0]){const im=new Image();im.onload=()=>{const t2=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t2);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,im);[gl.TEXTURE_WRAP_S,gl.TEXTURE_WRAP_T].forEach(x=>gl.texParameteri(gl.TEXTURE_2D,x,gl.CLAMP_TO_EDGE));gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);h.tex=t2};im.src=d.textures[0]}}}catch(e){}}
+let VPm=null;const hatSeen={};
+function drawHats(){if(!hats.length)return;gl.useProgram(pr2);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.uniformMatrix4fv(gl.getUniformLocation(pr2,'uV'),false,VPm);
+ for(const h of hats){const o=h.owner===U?P:others[h.owner];if(!o)continue;if(h.owner===U&&dist<2&&!PREV)continue;if(h.kind==='shirt'&&!h.tex)continue;const T=h.owner===U?[P.h]:[o.t?o.t[3]:0];
+  const m=h.kind==='shirt'?M.mul(M.mul(M.T(o.x,o.y+3,o.z),M.RY(T[0])),M.mul(M.T(0,0,.52),M.S(2,2,1))):M.mul(M.mul(M.T(o.x,o.y+5.2,o.z),M.RY(T[0])),M.mul(M.S(h.sc,h.sc,h.sc),M.T(-h.c[0],-h.c[1],-h.c[2])));
+  gl.uniformMatrix4fv(gl.getUniformLocation(pr2,'uM'),false,m);gl.uniform1f(gl.getUniformLocation(pr2,'uH'),h.tex?1:0);if(h.tex)gl.bindTexture(gl.TEXTURE_2D,h.tex);
+  [['aP',h.bp,3],['aU',h.bu,2]].forEach(([nm,b,z])=>{gl.bindBuffer(gl.ARRAY_BUFFER,b);const l=gl.getAttribLocation(pr2,nm);gl.enableVertexAttribArray(l);gl.vertexAttribPointer(l,z,gl.FLOAT,false,0,0)});gl.drawArrays(gl.TRIANGLES,0,h.n)}
+ gl.disable(gl.BLEND);gl.useProgram(pr);[['aP',bufP],['aN',bufN]].forEach(([nm,b])=>{gl.bindBuffer(gl.ARRAY_BUFFER,b);const l=gl.getAttribLocation(pr,nm);gl.enableVertexAttribArray(l);gl.vertexAttribPointer(l,3,gl.FLOAT,false,0,0)})}
+// ---------- HUD: health, bubbles, menu, tools ----------
+const hpI=document.querySelector('#hp i'),$g=id=>document.getElementById(id);
+function hpUpdate(){const h=clamp(Hum.v.Health/(Hum.v.MaxHealth||100),0,1);hpI.style.width=h*100+'%';hpI.style.background=h>.5?'#3c3':h>.25?'#dd3':'#d33'}
+function bubble(n,x,y,z){const b=bub[n];if(!b||t-b.t>10)return;const c=[0,1,2,3].map(r=>VPm[r]*x+VPm[4+r]*y+VPm[8+r]*z+VPm[12+r]);if(c[3]<=0)return;
+ const sx=(c[0]/c[3]*.5+.5)*innerWidth,sy=(1-(c[1]/c[3]*.5+.5))*innerHeight,tx=b.txt.slice(0,40);cx.font='12px Arial';const w=Math.min(260,cx.measureText(tx).width+16);
+ cx.fillStyle='rgba(255,255,255,.93)';cx.fillRect(sx-w/2,sy-32,w,21);cx.fillStyle='#000';cx.fillText(tx,sx,sy-17)}
+function syncMenu(){$g('m_lock').checked=lock;$g('m_fp').checked=dist<2}
+function toggleMenu(){menuOpen=!menuOpen;$g('menu').style.display=menuOpen?'flex':'none';
+ if(menuOpen){rel=true;document.exitPointerLock&&document.exitPointerLock();setTimeout(()=>rel=false,150);$g('m_av').src='/play.html?preview=1&u='+encodeURIComponent(U)+'&t='+Date.now();
+  $g('m_pl').innerHTML='<b>Players in this server:</b><br>'+[U,...Object.keys(others)].map(n=>n.replace(/[<>&]/g,'')).join(', ');syncMenu()}else ptr()}
+$g('m_res').onclick=toggleMenu;$g('m_reset').onclick=()=>{Hum.v.Health=0;toggleMenu()};
+$g('m_lock').onchange=e=>{lock=e.target.checked};$g('m_fp').onchange=e=>{dist=e.target.checked?.5:12};
+$g('m_sens').oninput=e=>{sens=+e.target.value};$g('m_leave').onclick=()=>{window.close();location.href='/'};
+function buildHot(){const h=$g('hot');h.innerHTML='';tools.forEach((tl,i)=>{const d=document.createElement('div');d.textContent=(i+1)+' '+tl.name;d.onclick=()=>equip(i);h.appendChild(d)})}
+function equip(i){const tl=tools[i];if(!tl)return;if(eq===tl){eq.e('Unequipped').fire();eq=null}else{if(eq)eq.e('Unequipped').fire();eq=tl;tl.par=Char;tl.e('Equipped').fire()}
+ [...$g('hot').children].forEach((d,k)=>d.className=tools[k]===eq?'on':'')}
+function activate(){if(eq){eq.e('Activated').fire();FIGHT.swing()}}
+// ---------- start ----------
+(async()=>{const t0=Date.now();let w=null;FIGHT.ui();if(PREV){P.x=0;P.y=0;P.z=0;loadHats(U,U);document.getElementById('load').style.display='none';requestAnimationFrame(frame);return}
+ try{if(G==='testgame'){w=FIGHT.load()}else{const lp=document.getElementById('lp'),tk=()=>new Promise(r=>setTimeout(r,30));lp.textContent='Downloading place...';await tk();const r=await fetch('/api/place/'+encodeURIComponent(G)+'.rbxl');if(!r.ok)throw 'no place file on server';const ab=await r.arrayBuffer();lp.textContent='Reading '+(ab.byteLength/1048576).toFixed(1)+' MB...';await tk();w=parseRbxl(ab);lp.textContent='Starting scripts...';await tk();
+  const rq=w.all.filter(i=>i.q&&inWS(i));rq.forEach(i=>addPart(i.q));tools=w.all.filter(i=>i.cn==='Tool').slice(0,9);buildHot();const sp=rq.find(i=>i.spawn);if(sp)spawn=[sp.q.P[0],sp.q.P[1]+ext(sp.q)[1]+3,sp.q.P[2]];const nScr=w.all.filter(i=>/Script$/.test(i.cn)).length;addChat('ROBLOX','Loaded '+rq.length+' parts/meshes from Workspace, '+nScr+' scripts.');if(rq.length<5)addChat('ROBLOX','Very few parts — map may use Terrain-only or unsupported classes, or the .rbxl was not fully uploaded (file too large?).')}}catch(e){addChat('ROBLOX','Could not read the place ('+e+') - empty baseplate. Use binary .rbxl (not .rbxlx).')}
+ P.x=spawn[0];P.y=spawn[1];P.z=spawn[2];loadHats(U,U);
+ try{await runScripts(w||{all:[],ws:null})}catch(e){logErr(e)}
+ setTimeout(()=>{document.getElementById('load').style.display='none';requestAnimationFrame(frame)},Math.max(0,1800-(Date.now()-t0)))})();
+</script></body></html>

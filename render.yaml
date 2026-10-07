@@ -1,0 +1,15 @@
+# Render Blueprint – deploy this repo as a Web Service
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: roblox-classic
+    runtime: python
+    plan: free
+    buildCommand: "echo 'No build step – stdlib only'"
+    startCommand: "python run.py"
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      # Optional: point DATA_DIR at a persistent disk mount path if you add one
+      # - key: DATA_DIR
+      #   value: /var/data

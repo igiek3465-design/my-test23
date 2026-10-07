@@ -1,0 +1,3 @@
+# ROBLOX Classic Browser Edition – pure Python stdlib
+# No external packages required. This file exists so Render
+# recognizes the service as a Python app.
