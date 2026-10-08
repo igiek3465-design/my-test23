@@ -6,20 +6,39 @@ canvas{position:absolute;left:0;top:0;width:100%;height:100%}*{cursor:url(/curso
 /* Mobile touch controls (shown only when mobile detected) */
 #mobile-ui{display:none;position:fixed;inset:0;z-index:6;pointer-events:none}
 body.mobile #mobile-ui{display:block}
-body.mobile #say{width:min(340px,calc(100% - 16px));font-size:16px}
-body.mobile #chat{width:min(340px,calc(100% - 16px));max-height:120px;font-size:12px}
-body.mobile #hud{font-size:11px;max-width:45%}
-body.mobile #hot{bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) scale(.92)}
-#joy-zone{position:absolute;left:0;bottom:0;width:48%;height:45%;pointer-events:auto}
-#joy-base{position:absolute;left:28px;bottom:28px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.35);box-shadow:0 0 0 1px rgba(0,0,0,.3) inset}
-#joy-stick{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:rgba(255,255,255,.45);border:2px solid rgba(255,255,255,.7);box-shadow:0 2px 8px rgba(0,0,0,.4)}
-#mob-btns{position:absolute;right:0;bottom:0;width:48%;height:45%;pointer-events:none}
+/* Chat at bottom center so joystick does not block it */
+body.mobile #chat{
+  left:8px;right:8px;top:auto;bottom:calc(52px + env(safe-area-inset-bottom,0px));
+  width:auto;max-width:none;max-height:90px;font-size:12px;
+  z-index:10;pointer-events:none;
+}
+body.mobile #say{
+  left:50%;transform:translateX(-50%);
+  bottom:calc(8px + env(safe-area-inset-bottom,0px));
+  width:min(420px,calc(100% - 170px));
+  max-width:calc(100% - 160px);
+  font-size:16px;z-index:12;pointer-events:auto;
+  box-sizing:border-box;padding:10px 12px;border-radius:8px;
+  border:2px solid #4a90d9;background:rgba(255,255,255,.95);
+}
+body.mobile #hud{font-size:11px;max-width:45%;top:56px}
+body.mobile #hot{bottom:calc(56px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) scale(.88);z-index:9}
+/* Joystick left — leave center free for chat input */
+#joy-zone{position:absolute;left:0;bottom:0;width:38%;height:42%;pointer-events:auto;z-index:5}
+#joy-base{position:absolute;left:16px;bottom:56px;width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.35);box-shadow:0 0 0 1px rgba(0,0,0,.3) inset}
+#joy-stick{position:absolute;left:50%;top:50%;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;background:rgba(255,255,255,.45);border:2px solid rgba(255,255,255,.7);box-shadow:0 2px 8px rgba(0,0,0,.4)}
+#mob-btns{position:absolute;right:0;bottom:0;width:38%;height:42%;pointer-events:none;z-index:5}
 .mob-btn{position:absolute;pointer-events:auto;border:none;border-radius:50%;color:#fff;font-weight:700;font-size:14px;text-shadow:0 1px 2px #000;box-shadow:0 3px 10px rgba(0,0,0,.45);-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .mob-btn:active,.mob-btn.on{filter:brightness(1.15);transform:scale(.96)}
-#btn-jump{right:22px;bottom:28px;width:78px;height:78px;background:rgba(60,180,80,.75);border:2px solid rgba(255,255,255,.5)}
-#btn-atk{right:22px;bottom:118px;width:72px;height:72px;background:rgba(200,50,50,.8);border:2px solid rgba(255,255,255,.5);display:none}
+#btn-jump{right:16px;bottom:56px;width:72px;height:72px;background:rgba(60,180,80,.75);border:2px solid rgba(255,255,255,.5)}
+#btn-atk{right:16px;bottom:140px;width:68px;height:68px;background:rgba(200,50,50,.8);border:2px solid rgba(255,255,255,.5);display:none}
 #btn-look-hint{position:absolute;right:12px;top:40%;font-size:11px;color:rgba(255,255,255,.5);text-shadow:0 1px 2px #000;pointer-events:none;display:none}
 body.mobile #btn-look-hint{display:block}
+#btn-home{position:absolute;top:10px;right:10px;width:48px;height:48px;border-radius:12px;background:rgba(0,0,0,.55);border:2px solid rgba(255,255,255,.45);color:#fff;font-size:26px;line-height:1;pointer-events:auto;display:none;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.4);-webkit-tap-highlight-color:transparent;z-index:7}
+body.mobile #btn-home{display:flex}
+#btn-home:active{filter:brightness(1.2);transform:scale(.95)}
+body.mobile #menu .mp{width:min(560px,96vw);max-height:90vh;overflow:auto;grid-template-columns:1fr;padding:12px}
+body.mobile #menu iframe{width:100%;height:180px;max-width:170px;margin:0 auto}
 #load{position:fixed;inset:0;background:#fff;z-index:9;display:flex;flex-direction:column;align-items:center;justify-content:center}
 #load .box{width:300px;text-align:center}#load img{width:90px}
 #load p{font-size:15px;color:#222;margin:10px 0}
@@ -45,6 +64,7 @@ body.mobile #btn-look-hint{display:block}
 <canvas id="gl"></canvas><canvas id="ov"></canvas>
 <div id="hp"><i></i><span>Health</span></div><div id="hot"></div>
 <div id="mobile-ui">
+  <button type="button" id="btn-home" title="Menu (Esc)" aria-label="Pause menu">🏠</button>
   <div id="joy-zone"><div id="joy-base"><div id="joy-stick"></div></div></div>
   <div id="mob-btns">
     <button type="button" class="mob-btn" id="btn-jump">JUMP</button>
@@ -228,7 +248,14 @@ function updateAtkBtn(){
 if(isMobile&&!PREV){
   document.body.classList.add('mobile');
   const hud=document.getElementById('hud');
-  if(hud)hud.innerHTML='Joystick move · JUMP · ATTACK (when tool equipped) · Drag right to look';
+  if(hud)hud.innerHTML='Joystick · JUMP · ATTACK · 🏠 menu · Tap chat bar below to type';
+  const sayEl=document.getElementById('say');
+  if(sayEl){sayEl.placeholder='Tap here to chat…';sayEl.style.zIndex='12'}
+  // Ensure chat input receives taps (above controls)
+  if(sayEl){
+    sayEl.addEventListener('touchstart',function(e){e.stopPropagation()}, {passive:true});
+    sayEl.addEventListener('focus',function(){keys.Space=0;if(typeof joy!=='undefined'){joy.active=false;joy.dx=0;joy.dy=0}});
+  }
   const base=document.getElementById('joy-base'),stick=document.getElementById('joy-stick'),zone=document.getElementById('joy-zone');
   const R=48; // max stick travel px
   function setStick(x,y){
@@ -294,6 +321,13 @@ if(isMobile&&!PREV){
   const endLook=e=>{for(const t of e.changedTouches){if(t.identifier===lookTouch.id){lookTouch.id=null;break}}};
   ov.addEventListener('touchend',endLook);ov.addEventListener('touchcancel',endLook);
   updateAtkBtn();
+  // House icon = same as Escape (pause menu)
+  const bh=document.getElementById('btn-home');
+  if(bh){
+    const openMenu=e=>{e.preventDefault();e.stopPropagation();if(typeof toggleMenu==='function')toggleMenu()};
+    bh.addEventListener('touchstart',openMenu,{passive:false});
+    bh.addEventListener('click',openMenu);
+  }
 }
 
 // ---------- chat + multiplayer (through run.py) ----------
