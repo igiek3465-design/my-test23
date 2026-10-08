@@ -76,6 +76,37 @@ def save_data(data):
 
 DATA = load_data()
 
+# ---------- chat filter (swear → #) ----------
+# English + common Polish words so school/ISP filters are less likely to flag the site.
+_BAD_WORDS = (
+    # English
+    "fuck", "fucker", "fucking", "fuk", "fck", "shit", "shitty", "bullshit",
+    "bitch", "asshole", "arsehole", "bastard", "dick", "dickhead", "cock",
+    "pussy", "cunt", "whore", "slut", "nigger", "nigga", "faggot", "fag",
+    "retard", "retarded", "motherfucker", "mf", "stfu", "gtfo", "damn",
+    "dammit", "goddamn", "crap", "piss", "pissed", "wanker", "twat",
+    # Polish (common)
+    "kurwa", "kurwy", "kurwy", "chuj", "chuja", "chuje", "pierdol", "pierdole",
+    "pierdolisz", "jebac", "jebać", "jebany", "jebana", "jebane", "dupa",
+    "dupie", "cipa", "cipę", "cipie", "spierdalaj", "spierdol", "pojeb",
+    "pojebany", "skurwysyn", "skurwiel", "debil", "idiota", "huj", "huja",
+    "kurw", "pierd", "jeb",
+)
+
+def censor_text(text: str) -> str:
+    """Replace swear words with the same length of # characters (case-insensitive)."""
+    if not text:
+        return text
+    import re
+    out = text
+    # Sort longer first so "fucking" is matched before "fuck"
+    words = sorted(set(_BAD_WORDS), key=len, reverse=True)
+    for w in words:
+        # word boundary-ish: allow leetspeak edges, block partial inside normal words lightly
+        pat = re.compile(re.escape(w), re.IGNORECASE)
+        out = pat.sub(lambda m: "#" * len(m.group(0)), out)
+    return out
+
 def hash_pw(pw: str) -> str:
     return hashlib.sha256(("rbx_classic_salt_" + pw).encode("utf-8")).hexdigest()
 
@@ -287,7 +318,7 @@ class RBXHandler(SimpleHTTPRequestHandler):
 
         if path == "/api/chat":
             user = (body.get("user") or "").strip()
-            text = (body.get("text") or "").strip()[:300]
+            text = censor_text((body.get("text") or "").strip()[:300])
             if not user or not text:
                 self._send_json({"ok": False, "error": "Empty"})
                 return

@@ -26,6 +26,29 @@ GAME_PORT = 53640          # UDP port the game server listens on
 SESSION_TTL = 90           # seconds without a heartbeat before a session is dead
 MAX_UPLOAD = 1024 * 1024 * 1024
 
+# Chat filter: swear words → same-length #####
+_BAD_WORDS = (
+    "fuck", "fucker", "fucking", "fuk", "fck", "shit", "shitty", "bullshit",
+    "bitch", "asshole", "arsehole", "bastard", "dick", "dickhead", "cock",
+    "pussy", "cunt", "whore", "slut", "nigger", "nigga", "faggot", "fag",
+    "retard", "retarded", "motherfucker", "mf", "stfu", "gtfo", "damn",
+    "dammit", "goddamn", "crap", "piss", "pissed", "wanker", "twat",
+    "kurwa", "kurwy", "chuj", "chuja", "chuje", "pierdol", "pierdole",
+    "pierdolisz", "jebac", "jebać", "jebany", "jebana", "jebane", "dupa",
+    "dupie", "cipa", "cipę", "cipie", "spierdalaj", "spierdol", "pojeb",
+    "pojebany", "skurwysyn", "skurwiel", "debil", "idiota", "huj", "huja",
+    "kurw", "pierd", "jeb",
+)
+
+def censor_text(text):
+    if not text:
+        return text
+    out = str(text)
+    for w in sorted(set(_BAD_WORDS), key=len, reverse=True):
+        pat = re.compile(re.escape(w), re.IGNORECASE)
+        out = pat.sub(lambda m: "#" * len(m.group(0)), out)
+    return out
+
 LAUNCHER_FILES = {
     "INSTALL-LAUNCHER.bat", "launch.bat", "launcher.py", "launcher_config.json",
     "RobloxPlayerBeta.exe",
@@ -320,7 +343,7 @@ def install(Base, get_local_ip, DATA=None, dlock=None, save=None, data_dir=None)
                     pos = [float(x) for x in (body.get("p") or [])[:10]]
                 except Exception:
                     pos = [0, 5, 0, 0, 0, 0]
-                say, since, now = str(body.get("say") or "")[:200].strip(), int(body.get("since") or 0), time.time()
+                say, since, now = censor_text(str(body.get("say") or "")[:200].strip()), int(body.get("since") or 0), time.time()
                 with _slock:
                     g = MP.setdefault(key, {"pl": {}, "chat": [], "n": 0, "owner": user, "created": now})
                     g["last"] = now
@@ -394,7 +417,7 @@ def install(Base, get_local_ip, DATA=None, dlock=None, save=None, data_dir=None)
 
             if path == "/api/feed":
                 body = self._read_json()
-                user, text = _safe_name(body.get("user")), str(body.get("text") or "").strip()[:200]
+                user, text = _safe_name(body.get("user")), censor_text(str(body.get("text") or "").strip()[:200])
                 with dlock:
                     real = next((u for u in DATA.get("users", {}) if u.lower() == user.lower()), None)
                     if not real or not text:

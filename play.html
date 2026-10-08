@@ -1,8 +1,25 @@
-<!DOCTYPE html><html><head><meta charset="utf-8"><title>ROBLOX</title>
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><title>ROBLOX</title>
 <link rel="icon" href="/favicon.ico">
 <style>
-html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:Arial,sans-serif;user-select:none}
+html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:Arial,sans-serif;user-select:none;-webkit-user-select:none;touch-action:none}
 canvas{position:absolute;left:0;top:0;width:100%;height:100%}*{cursor:url(/cursor.png) 0 0,auto!important}
+/* Mobile touch controls (shown only when mobile detected) */
+#mobile-ui{display:none;position:fixed;inset:0;z-index:6;pointer-events:none}
+body.mobile #mobile-ui{display:block}
+body.mobile #say{width:min(340px,calc(100% - 16px));font-size:16px}
+body.mobile #chat{width:min(340px,calc(100% - 16px));max-height:120px;font-size:12px}
+body.mobile #hud{font-size:11px;max-width:45%}
+body.mobile #hot{bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) scale(.92)}
+#joy-zone{position:absolute;left:0;bottom:0;width:48%;height:45%;pointer-events:auto}
+#joy-base{position:absolute;left:28px;bottom:28px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.35);box-shadow:0 0 0 1px rgba(0,0,0,.3) inset}
+#joy-stick{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:rgba(255,255,255,.45);border:2px solid rgba(255,255,255,.7);box-shadow:0 2px 8px rgba(0,0,0,.4)}
+#mob-btns{position:absolute;right:0;bottom:0;width:48%;height:45%;pointer-events:none}
+.mob-btn{position:absolute;pointer-events:auto;border:none;border-radius:50%;color:#fff;font-weight:700;font-size:14px;text-shadow:0 1px 2px #000;box-shadow:0 3px 10px rgba(0,0,0,.45);-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.mob-btn:active,.mob-btn.on{filter:brightness(1.15);transform:scale(.96)}
+#btn-jump{right:22px;bottom:28px;width:78px;height:78px;background:rgba(60,180,80,.75);border:2px solid rgba(255,255,255,.5)}
+#btn-atk{right:22px;bottom:118px;width:72px;height:72px;background:rgba(200,50,50,.8);border:2px solid rgba(255,255,255,.5);display:none}
+#btn-look-hint{position:absolute;right:12px;top:40%;font-size:11px;color:rgba(255,255,255,.5);text-shadow:0 1px 2px #000;pointer-events:none;display:none}
+body.mobile #btn-look-hint{display:block}
 #load{position:fixed;inset:0;background:#fff;z-index:9;display:flex;flex-direction:column;align-items:center;justify-content:center}
 #load .box{width:300px;text-align:center}#load img{width:90px}
 #load p{font-size:15px;color:#222;margin:10px 0}
@@ -21,12 +38,20 @@ canvas{position:absolute;left:0;top:0;width:100%;height:100%}*{cursor:url(/curso
 #menu .mp{background:#f4f4f4;width:560px;padding:14px;border:2px solid #333;display:grid;grid-template-columns:1fr 170px;gap:8px 14px;font-size:13px;color:#111}
 #menu h3{margin:0;grid-column:1/3}#menu .l{display:flex;flex-direction:column;gap:7px}#menu button{padding:7px;font-size:13px;cursor:pointer}
 #menu iframe{width:170px;height:240px;border:1px solid #333;background:#17171a}#m_pl{font-size:12px;max-height:70px;overflow:auto}
-.prev #chat,.prev #say,.prev #hud,.prev #hp,.prev #hot{display:none!important}
+.prev #chat,.prev #say,.prev #hud,.prev #hp,.prev #hot,.prev #mobile-ui{display:none!important}
 </style></head><body>
 <div id="load"><div class="box"><img src="/logo-r.png"><p id="lp">Starting ROBLOX...</p><div id="bar"><i></i></div></div></div>
 <script src="/lua.js"></script><script src="/fight.js"></script>
 <canvas id="gl"></canvas><canvas id="ov"></canvas>
 <div id="hp"><i></i><span>Health</span></div><div id="hot"></div>
+<div id="mobile-ui">
+  <div id="joy-zone"><div id="joy-base"><div id="joy-stick"></div></div></div>
+  <div id="mob-btns">
+    <button type="button" class="mob-btn" id="btn-jump">JUMP</button>
+    <button type="button" class="mob-btn" id="btn-atk">ATTACK</button>
+  </div>
+  <div id="btn-look-hint">Drag right side to look</div>
+</div>
 <div id="menu"><div class="mp"><h3>ROBLOX &mdash; Menu</h3><div class="l"><button id="m_res">Resume</button><button id="m_reset">Reset Character</button><label><input type="checkbox" id="m_lock"> Shift Lock (Shift key)</label><label><input type="checkbox" id="m_fp"> First Person (scroll in)</label><label>Skin <select id="m_skin"><option value="0">Classic (black / white)</option><option value="1">character.rbxm</option></select></label><label>Camera sensitivity <input type="range" id="m_sens" min=".3" max="3" step=".1" value="1"></label><div id="m_pl"></div><button id="m_leave">Leave Game</button></div><iframe id="m_av"></iframe></div></div>
 <div id="chat"></div><input id="say" placeholder="To chat click here or press / key" maxlength="200" autocomplete="off">
 <div id="hud">WASD move &middot; Space jump &middot; Right-drag camera &middot; Wheel zoom</div>
@@ -183,9 +208,98 @@ addEventListener('mouseup',e=>{if(drag&&moved<5&&e.button===0)activate();drag=fa
 addEventListener('mousemove',e=>{if(menuOpen)return;if(document.pointerLockElement===ov){yaw-=e.movementX*.0025*sens;pit=clamp(pit+e.movementY*.0025*sens,-1.2,1.4)}
  else if(drag){const dx=e.clientX-lx,dy=e.clientY-ly;moved+=Math.abs(dx)+Math.abs(dy);yaw-=dx*.008*sens;pit=clamp(pit+dy*.006*sens,-1.2,1.4);lx=e.clientX;ly=e.clientY}});
 addEventListener('wheel',e=>{if(menuOpen)return;e.preventDefault();dist=clamp(dist+e.deltaY*.02,.5,60);if(dist<2)dist=e.deltaY<0?.5:2.2;ptr();syncMenu()},{passive:false});
+
+// ---------- MOBILE: detect + joystick + jump + attack ----------
+const isMobile=(()=>{
+  const ua=navigator.userAgent||'';
+  if(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet/i.test(ua))return true;
+  if(navigator.maxTouchPoints>1&&window.matchMedia&&matchMedia('(pointer:coarse)').matches)return true;
+  if('ontouchstart' in window&&Math.min(screen.width,screen.height)<900)return true;
+  return false;
+})();
+let joy={active:false,dx:0,dy:0,id:null},lookTouch={id:null,x:0,y:0};
+function updateAtkBtn(){
+  const b=document.getElementById('btn-atk');
+  if(!b)return;
+  // Show attack when a tool is equipped (Sword or any Tool)
+  const show=!!eq;
+  b.style.display=show?'block':'none';
+}
+if(isMobile&&!PREV){
+  document.body.classList.add('mobile');
+  const hud=document.getElementById('hud');
+  if(hud)hud.innerHTML='Joystick move · JUMP · ATTACK (when tool equipped) · Drag right to look';
+  const base=document.getElementById('joy-base'),stick=document.getElementById('joy-stick'),zone=document.getElementById('joy-zone');
+  const R=48; // max stick travel px
+  function setStick(x,y){
+    const l=Math.hypot(x,y)||1,nx=x/l*Math.min(l,R),ny=y/l*Math.min(l,R);
+    stick.style.transform='translate('+nx+'px,'+ny+'px)';
+    joy.dx=nx/R;joy.dy=ny/R;
+  }
+  function resetStick(){joy.active=false;joy.dx=0;joy.dy=0;joy.id=null;stick.style.transform='translate(0,0)'}
+  zone.addEventListener('touchstart',e=>{
+    if(menuOpen)return;
+    const t=e.changedTouches[0];if(!t)return;
+    e.preventDefault();
+    joy.active=true;joy.id=t.identifier;
+    const r=base.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+    setStick(t.clientX-cx,t.clientY-cy);
+  },{passive:false});
+  zone.addEventListener('touchmove',e=>{
+    if(!joy.active)return;
+    for(const t of e.changedTouches){if(t.identifier===joy.id){
+      e.preventDefault();
+      const r=base.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+      setStick(t.clientX-cx,t.clientY-cy);break;
+    }}
+  },{passive:false});
+  const endJoy=e=>{for(const t of e.changedTouches){if(t.identifier===joy.id){resetStick();break}}};
+  zone.addEventListener('touchend',endJoy);zone.addEventListener('touchcancel',endJoy);
+
+  // Jump button
+  const bj=document.getElementById('btn-jump');
+  const pressJump=e=>{e.preventDefault();e.stopPropagation();keys.Space=1;bj.classList.add('on')};
+  const releaseJump=e=>{e.preventDefault();keys.Space=0;bj.classList.remove('on')};
+  bj.addEventListener('touchstart',pressJump,{passive:false});
+  bj.addEventListener('touchend',releaseJump,{passive:false});
+  bj.addEventListener('touchcancel',releaseJump,{passive:false});
+
+  // Attack button
+  const ba=document.getElementById('btn-atk');
+  ba.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();activate();ba.classList.add('on')},{passive:false});
+  ba.addEventListener('touchend',e=>{e.preventDefault();ba.classList.remove('on')},{passive:false});
+  ba.addEventListener('touchcancel',e=>{ba.classList.remove('on')},{passive:false});
+
+  // Touch look: drag on right half of screen (not on buttons/joystick)
+  ov.addEventListener('touchstart',e=>{
+    if(menuOpen)return;
+    for(const t of e.changedTouches){
+      if(t.clientX>innerWidth*0.45){
+        lookTouch.id=t.identifier;lookTouch.x=t.clientX;lookTouch.y=t.clientY;
+        e.preventDefault();break;
+      }
+    }
+  },{passive:false});
+  ov.addEventListener('touchmove',e=>{
+    if(lookTouch.id===null)return;
+    for(const t of e.changedTouches){
+      if(t.identifier===lookTouch.id){
+        const dx=t.clientX-lookTouch.x,dy=t.clientY-lookTouch.y;
+        yaw-=dx*.006*sens;pit=clamp(pit+dy*.005*sens,-1.2,1.4);
+        lookTouch.x=t.clientX;lookTouch.y=t.clientY;
+        e.preventDefault();break;
+      }
+    }
+  },{passive:false});
+  const endLook=e=>{for(const t of e.changedTouches){if(t.identifier===lookTouch.id){lookTouch.id=null;break}}};
+  ov.addEventListener('touchend',endLook);ov.addEventListener('touchcancel',endLook);
+  updateAtkBtn();
+}
+
 // ---------- chat + multiplayer (through run.py) ----------
 let pend=null,since=0;const chatEl=document.getElementById('chat');
-function sendSay(s){s=s.trim();if(s)pend=s}
+function censorChat(t){if(!t)return t;const W=["fuck","fucker","fucking","fuk","fck","shit","shitty","bullshit","bitch","asshole","arsehole","bastard","dick","dickhead","cock","pussy","cunt","whore","slut","nigger","nigga","faggot","fag","retard","retarded","motherfucker","stfu","gtfo","damn","dammit","goddamn","crap","piss","pissed","wanker","twat","kurwa","kurwy","chuj","chuja","chuje","pierdol","pierdole","pierdolisz","jebac","jebać","jebany","jebana","jebane","dupa","dupie","cipa","cipę","cipie","spierdalaj","spierdol","pojeb","pojebany","skurwysyn","skurwiel","debil","idiota","huj","huja","kurw","pierd","jeb"].sort((a,b)=>b.length-a.length);let o=t;for(const w of W){o=o.replace(new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'),m=>'#'.repeat(m.length))}return o}
+function sendSay(s){s=censorChat(s.trim());if(s)pend=s}
 function addChat(u,s){const d=document.createElement('div');d.innerHTML='<b></b>: <span></span>';d.children[0].textContent=u;d.children[1].textContent=s;chatEl.appendChild(d);while(chatEl.children.length>8)chatEl.firstChild.remove()}
 setInterval(async()=>{if(PREV)return;try{const r=await(await fetch('/api/mp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({g:G,s:S,u:U,p:[P.x,P.y,P.z,P.h,P.sp,P.vy!==0?1:0,...FIGHT.pp()],say:pend,since,fx:FIGHT.pack()})})).json();pend=null;FIGHT.recv(r);
  for(const k in others)if(!r.pl[k])delete others[k];for(const k in r.pl){if(k===U)continue;if(!others[k]&&!hatSeen[k]){hatSeen[k]=1;loadHats(k,k)}const o=others[k]=others[k]||{x:r.pl[k][0],y:r.pl[k][1],z:r.pl[k][2],h:0};o.t=r.pl[k]}
@@ -193,7 +307,7 @@ setInterval(async()=>{if(PREV)return;try{const r=await(await fetch('/api/mp',{me
 // ---------- loop ----------
 function frame(now){const dt=Math.min(.05,(now-last)/1e3);last=now;t+=dt;
  const W=innerWidth,H=innerHeight;if(cv.width!==W||cv.height!==H){cv.width=ov.width=W;cv.height=ov.height=H}
- yaw+=((keys.ArrowLeft?1:0)-(keys.ArrowRight?1:0))*2*dt;let f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),s=(keys.KeyD?1:0)-(keys.KeyA?1:0);if(menuOpen||PREV){f=0;s=0}
+ yaw+=((keys.ArrowLeft?1:0)-(keys.ArrowRight?1:0))*2*dt;let f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0),s=(keys.KeyD?1:0)-(keys.KeyA?1:0);if(typeof joy!=='undefined'&&joy.active){f+=-joy.dy;s+=joy.dx;const ml=Math.hypot(f,s);if(ml>1){f/=ml;s/=ml}}if(menuOpen||PREV){f=0;s=0}
  if(f||s){const a=yaw,dx=-(Math.sin(a)*f)+Math.cos(a)*s,dz=-(Math.cos(a)*f)-Math.sin(a)*s,l=Math.hypot(dx,dz);{const SP=FIGHT.fly?45:16,nx=P.x+dx/l*SP*dt,nz=P.z+dz/l*SP*dt;if(!blocked(nx,P.z,P.y))P.x=nx;if(!blocked(P.x,nz,P.y))P.z=nz}if(!(lock||dist<2))P.h=Math.atan2(dx,dz);P.sp=1}else P.sp=0;if(lock||dist<2)P.h=yaw+Math.PI;
  if(FIGHT.fly){P.vy=((keys.Space?1:0)-(keys.KeyC?1:0))*45;P.y=Math.max(3,P.y+P.vy*dt)}else{P.vy-=196.2*dt;P.y+=P.vy*dt;const g=ground(P.x,P.z,P.y);if(g>-1e8&&P.y<=g+.01&&P.vy<=0){P.y=g;P.vy=0;if(keys.Space)P.vy=50}}
  if(Hum.v.Health<=0||P.y<-300){if(FIGHT.on){FIGHT.died();spawn=FIGHT.pick()}Hum.v.Health=100;P.x=spawn[0];P.y=spawn[1];P.z=spawn[2];P.vy=0}
@@ -315,7 +429,7 @@ $g('m_lock').onchange=e=>{lock=e.target.checked};$g('m_fp').onchange=e=>{dist=e.
 $g('m_sens').oninput=e=>{sens=+e.target.value};$g('m_leave').onclick=()=>{window.close();location.href='/'};
 function buildHot(){const h=$g('hot');h.innerHTML='';tools.forEach((tl,i)=>{const d=document.createElement('div');d.textContent=(i+1)+' '+tl.name;d.onclick=()=>equip(i);h.appendChild(d)})}
 function equip(i){const tl=tools[i];if(!tl)return;if(eq===tl){eq.e('Unequipped').fire();eq=null}else{if(eq)eq.e('Unequipped').fire();eq=tl;tl.par=Char;tl.e('Equipped').fire()}
- [...$g('hot').children].forEach((d,k)=>d.className=tools[k]===eq?'on':'')}
+ [...$g('hot').children].forEach((d,k)=>d.className=tools[k]===eq?'on':'');if(typeof updateAtkBtn==='function')updateAtkBtn()}
 function activate(){if(eq){eq.e('Activated').fire();FIGHT.swing()}}
 // ---------- start ----------
 (async()=>{const t0=Date.now();let w=null;FIGHT.ui();if(PREV){P.x=0;P.y=0;P.z=0;loadHats(U,U);document.getElementById('load').style.display='none';requestAnimationFrame(frame);return}

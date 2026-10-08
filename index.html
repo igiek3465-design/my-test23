@@ -1075,6 +1075,13 @@ body.dark-mode .inv-item { background: #1b2838; border-color: #444; color: #ddd;
       </div>
     </div>
   </div>
+  <!-- Always-visible friends bar (not only Friends tab) -->
+  <div id="friends-bar" style="display:none;background:#f5f5f5;border-bottom:1px solid #ccc;padding:6px 12px;align-items:center;gap:10px;flex-wrap:wrap;">
+    <span style="font-size:12px;font-weight:700;color:#333;white-space:nowrap;">Friends</span>
+    <div id="friends-bar-list" class="friends-row" style="flex:1;padding:0;min-height:0;"></div>
+    <span style="font-size:11px;color:#666;white-space:nowrap;">Online: <b id="friends-bar-online">0</b> / <span id="friends-bar-total">0</span></span>
+    <button type="button" id="friends-bar-open" class="btn-green" style="padding:3px 10px;height:auto;font-size:11px;">Manage</button>
+  </div>
 
   <!-- SIGN UP PAGE (separate tab/page, not inside login) -->
   <!-- Sign Up: birthday + boy/girl (classic 2013) -->
@@ -1950,6 +1957,8 @@ function handleLogout(){
   localStorage.removeItem('activeUser');
   currentUser = null;
   ['login-user','login-pass','signup-user','signup-pass','signup-pass2'].forEach(id => { if($(id)) $(id).value=''; });
+  const bar = $('friends-bar');
+  if(bar) bar.style.display = 'none';
   showGuestApp();
 }
 
@@ -2078,25 +2087,64 @@ function addFriend(name){
   list.push({ name: real });
   saveFriends(list);
   renderFriends();
+  if(typeof renderFriendsPage === 'function') renderFriendsPage();
+  try { if(typeof pushUserToServer === 'function') pushUserToServer(); } catch(e){}
 }
 function renderFriends(){
   const c = $('friends-list');
-  if(!c) return;
-  c.innerHTML = '';
   const list = getFriends();
   const countEl = $('friend-count');
   if(countEl) countEl.textContent = String(list.length);
-  if(!list.length){
-    c.innerHTML = '<div class="empty-state" style="padding:10px;font-size:12px;color:#666;">No friends yet. Add a username that has signed up on this browser.</div>';
+  if(c){
+    c.innerHTML = '';
+    if(!list.length){
+      c.innerHTML = '<div class="empty-state" style="padding:10px;font-size:12px;color:#666;">No friends yet. Add a username that has signed up on this browser.</div>';
+    } else {
+      list.forEach(f => {
+        const online = isUserOnline(f.name);
+        const d = document.createElement('div');
+        d.className = 'friend-item';
+        d.style.cursor = 'pointer';
+        d.innerHTML = '<img src="'+NOOB_URI+'" alt="'+escapeHtml(f.name)+'">'+(online?'<div class="online" title="Online"></div>':'')+'<div class="name">'+escapeHtml(f.name)+(online?'':' <span style="color:#999;font-size:10px;">offline</span>')+'</div>';
+        d.onclick = () => { if(typeof openProfile==='function') openProfile(f.name); };
+        c.appendChild(d);
+      });
+    }
+  }
+  // Always-visible bar (every page, not only Friends tab)
+  renderFriendsBar();
+}
+function renderFriendsBar(){
+  const bar = $('friends-bar');
+  const listEl = $('friends-bar-list');
+  if(!bar || !listEl) return;
+  if(!currentUser){
+    bar.style.display = 'none';
     return;
   }
-  list.forEach(f => {
-    const online = isUserOnline(f.name);
-    const d = document.createElement('div');
-    d.className = 'friend-item';
-    d.innerHTML = '<img src="'+NOOB_URI+'" alt="'+escapeHtml(f.name)+'">'+(online?'<div class="online" title="Online"></div>':'')+'<div class="name">'+escapeHtml(f.name)+(online?'':' <span style="color:#999;font-size:10px;">offline</span>')+'</div>';
-    c.appendChild(d);
-  });
+  bar.style.display = 'flex';
+  const list = getFriends();
+  let onlineN = 0;
+  listEl.innerHTML = '';
+  if(!list.length){
+    listEl.innerHTML = '<span style="font-size:11px;color:#888;">No friends yet — add someone on Home or Friends.</span>';
+  } else {
+    list.forEach(f => {
+      const online = (typeof isUserOnline === 'function') ? isUserOnline(f.name) : false;
+      if(online) onlineN++;
+      const d = document.createElement('div');
+      d.className = 'friend-item';
+      d.style.cssText = 'width:52px;cursor:pointer;';
+      d.title = f.name + (online ? ' (Online)' : ' (Offline)');
+      d.innerHTML = '<img src="'+NOOB_URI+'" alt="'+escapeHtml(f.name)+'" style="width:40px;height:40px;">'+(online?'<div class="online" title="Online"></div>':'')+'<div class="name">'+escapeHtml(f.name)+'</div>';
+      d.onclick = () => { if(typeof openProfile==='function') openProfile(f.name); };
+      listEl.appendChild(d);
+    });
+  }
+  const oEl = $('friends-bar-online');
+  const tEl = $('friends-bar-total');
+  if(oEl) oEl.textContent = String(onlineN);
+  if(tEl) tEl.textContent = String(list.length);
 }
 
 // ===== GAMES (no fake defaults) =====
@@ -2640,10 +2688,17 @@ function renderChat(){
   });
   box.scrollTop = box.scrollHeight;
 }
+function censorChat(t){
+  if(!t) return t;
+  const W=["fuck","fucker","fucking","fuk","fck","shit","shitty","bullshit","bitch","asshole","arsehole","bastard","dick","dickhead","cock","pussy","cunt","whore","slut","nigger","nigga","faggot","fag","retard","retarded","motherfucker","stfu","gtfo","damn","dammit","goddamn","crap","piss","pissed","wanker","twat","kurwa","kurwy","chuj","chuja","chuje","pierdol","pierdole","pierdolisz","jebac","jebać","jebany","jebana","jebane","dupa","dupie","cipa","cipę","cipie","spierdalaj","spierdol","pojeb","pojebany","skurwysyn","skurwiel","debil","idiota","huj","huja","kurw","pierd","jeb"].sort((a,b)=>b.length-a.length);
+  let o=t;
+  for(const w of W){ o=o.replace(new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'), m=>'#'.repeat(m.length)); }
+  return o;
+}
 function sendChat(){
   if(!currentUser) return;
   const input = $('chat-input');
-  const text = (input.value || '').trim();
+  const text = censorChat((input.value || '').trim());
   if(!text) return;
   const list = getChat();
   list.push({ user: currentUser, text: text, at: Date.now() });
@@ -3274,6 +3329,7 @@ document.addEventListener('DOMContentLoaded', () => {
     addFriend(($('friend-add-input')||{}).value);
     if($('friend-add-input')) $('friend-add-input').value = '';
   });
+  if($('friends-bar-open')) $('friends-bar-open').addEventListener('click', () => { showPage('friends'); });
   $('search-btn').addEventListener('click', () => alert('Search: "' + $('search-input').value + '" (demo)'));
   $('btn-msg').addEventListener('click', () => alert('No new messages.'));
   $('btn-friends').addEventListener('click', () => { showPage('friends'); });
@@ -3289,6 +3345,9 @@ document.addEventListener('DOMContentLoaded', () => {
     this.value = '';
   });
   loadTheme();
+  // Refresh friends bar (online dots) every 15s — visible on all pages, not only Friends tab
+  setInterval(function(){ if(currentUser && typeof renderFriendsBar==='function') renderFriendsBar(); }, 15000);
+
   if($('see-all-friends')) $('see-all-friends').addEventListener('click', (e) => { e.preventDefault(); alert('All friends shown.'); });
   if($('see-all-games')) $('see-all-games').addEventListener('click', (e) => { e.preventDefault(); alert('All published places are shown on this page.'); });
 
