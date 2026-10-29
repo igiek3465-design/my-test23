@@ -117,6 +117,39 @@ def get_local_ip():
 # ---------- request handler ----------
 
 class RBXHandler(SimpleHTTPRequestHandler):
+    # Force correct MIME types so PNGs, JPGs, JS, CSS, fonts all load (not as text)
+    extensions_map = {
+        **getattr(SimpleHTTPRequestHandler, "extensions_map", {}),
+        ".html": "text/html",
+        ".htm": "text/html",
+        ".css": "text/css",
+        ".js": "application/javascript",
+        ".json": "application/json",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".gif": "image/gif",
+        ".webp": "image/webp",
+        ".svg": "image/svg+xml",
+        ".ico": "image/x-icon",
+        ".woff": "font/woff",
+        ".woff2": "font/woff2",
+        ".ttf": "font/ttf",
+        ".otf": "font/otf",
+        ".obj": "text/plain",
+        ".rbxm": "application/octet-stream",
+        ".rbxl": "application/octet-stream",
+        ".mp3": "audio/mpeg",
+        ".wav": "audio/wav",
+        ".ogg": "audio/ogg",
+        ".mp4": "video/mp4",
+        ".webm": "video/webm",
+        ".txt": "text/plain",
+        ".md": "text/plain",
+        ".xml": "application/xml",
+        "": "application/octet-stream",
+    }
+
     def log_message(self, fmt, *args):
         sys.stderr.write("[RBX] %s - %s\n" % (self.address_string(), fmt % args))
 
@@ -203,9 +236,10 @@ class RBXHandler(SimpleHTTPRequestHandler):
             self._send_json({"ok": True, "users": list(online.keys())})
             return
 
-        # static files
+        # static files – serve HTML, PNG, JPG, JS, CSS, fonts, etc. correctly
         if path == "/" or path == "":
             self.path = "/index.html"
+        # Ensure binary-safe serving and correct Content-Type for images
         return SimpleHTTPRequestHandler.do_GET(self)
 
     def do_POST(self):
