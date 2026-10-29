@@ -7,7 +7,7 @@ Run this on one PC on your WiFi, then everyone else opens:
 
 Usage:
     python run.py
-    (or:  py run.py   /   python3 run.py)
+    (or:  py run.py    /    python3 run.py)
 
 It serves the classic ROBLOX website and shares accounts, games,
 inventory, ROBUX and chat across every device on the same network.
@@ -77,16 +77,13 @@ def save_data(data):
 DATA = load_data()
 
 # ---------- chat filter (swear → #) ----------
-# English + common Polish words so school/ISP filters are less likely to flag the site.
 _BAD_WORDS = (
-    # English
     "fuck", "fucker", "fucking", "fuk", "fck", "shit", "shitty", "bullshit",
     "bitch", "asshole", "arsehole", "bastard", "dick", "dickhead", "cock",
     "pussy", "cunt", "whore", "slut", "nigger", "nigga", "faggot", "fag",
     "retard", "retarded", "motherfucker", "mf", "stfu", "gtfo", "damn",
     "dammit", "goddamn", "crap", "piss", "pissed", "wanker", "twat",
-    # Polish (common)
-    "kurwa", "kurwy", "kurwy", "chuj", "chuja", "chuje", "pierdol", "pierdole",
+    "kurwa", "kurwy", "chuj", "chuja", "chuje", "pierdol", "pierdole",
     "pierdolisz", "jebac", "jebać", "jebany", "jebana", "jebane", "dupa",
     "dupie", "cipa", "cipę", "cipie", "spierdalaj", "spierdol", "pojeb",
     "pojebany", "skurwysyn", "skurwiel", "debil", "idiota", "huj", "huja",
@@ -94,15 +91,12 @@ _BAD_WORDS = (
 )
 
 def censor_text(text: str) -> str:
-    """Replace swear words with the same length of # characters (case-insensitive)."""
     if not text:
         return text
     import re
     out = text
-    # Sort longer first so "fucking" is matched before "fuck"
     words = sorted(set(_BAD_WORDS), key=len, reverse=True)
     for w in words:
-        # word boundary-ish: allow leetspeak edges, block partial inside normal words lightly
         pat = re.compile(re.escape(w), re.IGNORECASE)
         out = pat.sub(lambda m: "#" * len(m.group(0)), out)
     return out
@@ -124,7 +118,6 @@ def get_local_ip():
 
 class RBXHandler(SimpleHTTPRequestHandler):
     def log_message(self, fmt, *args):
-        # quieter logs
         sys.stderr.write("[RBX] %s - %s\n" % (self.address_string(), fmt % args))
 
     def _send_json(self, obj, status=200):
@@ -160,6 +153,15 @@ class RBXHandler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
 
+        # --- DODANA OBSŁUGA STRONY STARTOWEJ 2009 ---
+        if path.lower() == "/ide/start.aspx":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(b"<html><body><h1>Roblox 2009 Studio Start</h1></body></html>")
+            return
+        # ---------------------------------------------
+
         if path == "/api/status":
             self._send_json({
                 "ok": True,
@@ -181,7 +183,7 @@ class RBXHandler(SimpleHTTPRequestHandler):
             games.sort(key=lambda x: x.get("created", 0), reverse=True)
             games.insert(0, {"id": "testgame", "title": "Sword Arena (Test Game)", "creator": "ROBLOX", "owner": "ROBLOX",
                              "playing": "-", "visits": "-", "likes": "-", "thumb": "/arena-thumb.jpg", "color": "#7a2e0c",
-                             "isDefault": True, "desc": "Built-in fighting game. Press 1 to equip the Sword, click to swing. Fight other players. Admins: /fly /unfly /kick /ban."})
+                             "isDefault": True, "desc": "Built-in fighting game. Press 1 to equip the Sword, click to swing. Fight other players."})
             self._send_json({"ok": True, "games": games})
             return
 
@@ -339,7 +341,6 @@ class RBXHandler(SimpleHTTPRequestHandler):
             self._send_json({
                 "ok": True,
                 "message": f'Joining "{title}" as {user}…',
-                "note": "This demo uses the browser. A real RobloxPlayer would start here.",
             })
             return
 
@@ -363,7 +364,7 @@ class RBXHandler(SimpleHTTPRequestHandler):
 
         self._send_json({"ok": False, "error": "Unknown API"}, 404)
 
-# ---------- multiplayer add-on (ADDED - plays places with RobloxPlayerBeta.exe) ----------
+# ---------- multiplayer add-on ----------
 try:
     from multiplayer import install as _install_mp
     RBXHandler = _install_mp(RBXHandler, get_local_ip, DATA, _lock, save_data, DATA_DIR)
@@ -375,7 +376,6 @@ except Exception as _e:
 
 if __name__ == "__main__":
     ip = get_local_ip()
-    # Render (and most PaaS) inject PORT. Fall back to 5000 for local use.
     port = int(os.environ.get("PORT", "5000"))
     print()
     print("=" * 58)
@@ -389,29 +389,11 @@ if __name__ == "__main__":
     print("  Press Ctrl+C to stop.")
     print("=" * 58)
     print()
-    # ThreadingHTTPServer so multiple people can load pages at once
     server = ThreadingHTTPServer(("0.0.0.0", port), RBXHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\n[RBX] Server stopped.")
         server.server_close()
-    except OSError as e:
-        print()
-        print("ERROR: Could not start server.")
-        print("  → Is the port already in use?")
-        print("  → Try closing other programs or change PORT.")
-        print("Details:", e)
-        print()
-        try:
-            input("Press Enter to close...")
-        except Exception:
-            pass
     except Exception as e:
-        print()
-        print("ERROR:", e)
-        print()
-        try:
-            input("Press Enter to close...")
-        except Exception:
-            pass
+        print("\nERROR:", e)
